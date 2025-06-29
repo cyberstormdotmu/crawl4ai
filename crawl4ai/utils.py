@@ -42,6 +42,11 @@ from itertools import chain
 from collections import deque
 from typing import  Generator, Iterable
 
+import base64
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives import serialization
+
 def chunk_documents(
     documents: Iterable[str],
     chunk_token_threshold: int,
@@ -2810,3 +2815,92 @@ def preprocess_html_for_schema(html_content, text_threshold=100, attr_value_thre
         # Fallback for parsing errors
         return html_content[:max_size] if len(html_content) > max_size else html_content
     
+class BotAuth:
+    '''
+    BotAuth(url)
+    @params
+        - url : URL to the HTTP-MESSAGE-BOT-SIGNATURE
+    
+    @METHODS
+        - get_local_keys() -> -> list[dict[str, str]]
+        - get_remote_keys() -> list[dict[str, str]]
+        - get_header()-> dict[str, str]
+    '''
+    def __init__(self, url):
+        self.url = url
+
+    def get_local_keys(self) -> list[dict[str, str]]:
+        """
+        DUMMY MODULE: TEMPLATE FOR TESTING
+        """
+        return [
+            {
+                "kty": "OKP",
+                "crv": "Ed25519",
+                "kid": "poqkLGiymh_W0uP6PZFw-dvez3QJT5SolqXBCW38r0U",
+                "d": "n4Ni-HpISpVObnQMW0wOhCKROaIKqKtW_2ZYb2p9KcU",
+                "x": "JrQLj5P_89iXES9-vFgrIy29clF9CC_oPPsw3c5D0bs",
+            }
+        ]
+
+    def get_remote_keys(self) -> list[dict[str, str]]:
+        res = requests.get(self.url)
+        try:
+            res_json = res.json()
+            return res_json
+        except Exception as e:
+            print(e)
+            return None
+
+    def _base64url_decode(self, val):
+        return base64.urlsafe_b64decode(val + "=" * (-len(val) % 4))
+
+    def _base64_encode_bytes(self, val):
+        return base64.b64encode(val).decode("ascii")
+
+    def _jwt_to_private_key(self, jwk):
+        return Ed25519PrivateKey.from_private_bytes(self._base64url_decode(jwk["d"]))
+
+    # def _jwk_to_public_key_bytes(self, jwk):
+    #     private_key = self.jwk_to_private_key(jwk)
+    #     public_key = private_key.public_key()
+    #     return public_key.public_bytes(Encoding.Raw, PublicFormat.Raw)
+
+    def get_header(self) -> dict[str, str]:
+        remote_keys = self.get_remote_keys()
+        local_keys = self.get_local_keys()
+
+        if remote_keys is None:
+            return None
+
+        ## Get similar key in local repo
+        selected_key = None
+        for local in local_keys:
+            for remote in remote_keys.get("keys", []):
+                if remote.get("kid") == local.get("kid") and remote.get("x") == local.get("x"):
+                    selected_key = local
+                    break
+            if selected_key:
+                break
+
+        if not selected_key:
+            return None
+
+        private_key = self._jwt_to_private_key(selected_key)
+        url_obj = requests.utils.urlparse(self.url)
+        authority = url_obj.netloc
+        signature_agent = "http-message-signatures-example.research.cloudflare.com"
+        now = int(time.time())
+        created = now
+        expires = now + 3600
+        param = f'("@authority" "signature-agent");created={created};expires={expires};keyid="{selected_key["kid"]}";tag="web-bot-auth"'
+        base = f'"@authority": {authority}\n"signature-agent": {signature_agent}\n"@signature-params": {param}'
+
+        signature_b64 = self._base64_encode_bytes(private_key.sign(base.encode("utf-8")))
+        header = {
+            "Signature-Agent": signature_agent,
+            "Signature-Input": f"sig={param}",
+            "Signature": f"sig=:{signature_b64}",
+        }
+
+        return header

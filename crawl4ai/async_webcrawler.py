@@ -327,9 +327,39 @@ class AsyncWebCrawler:
                                 },
                             )
 
+                    # Check Bot_Auth if blocked
+                    
+                    auth = BotAuth(url="https://http-message-signatures-example.research.cloudflare.com/.well-known/http-message-signatures-directory")
+                    # auth = BotAuth(url="https://www.bloomberg.com")
+                    header = auth.get_header()
+                    if header == None:
+                        self.logger.error(
+                            message="Error not BOT AUTH FOUND!",
+                            tag="BOT-AUTH"
+                        )
+                        return CrawlResult(
+                                url=url,
+                                html="",
+                                success=False,
+                                status_code=403,
+                                error_message="Access denied by BOT-AUTH",
+                                response_headers={
+                                    "X-BOT-Status": "Blocked by BOTH-AUTH"
+                                },
+                            )
                     ##############################
                     # Call CrawlerStrategy.crawl #
                     ##############################
+                    
+                    t2 = time.perf_counter()
+                    self.logger.url_status(
+                            url=cache_context.display_url,
+                            success=True,
+                            timing=t1 - t2,
+                            tag="BOT-AUTH"
+                        )
+                    
+                    
                     async_response = await self.crawler_strategy.crawl(
                         url,
                         config=config,  # Pass the entire config object

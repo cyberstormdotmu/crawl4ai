@@ -1,5 +1,5 @@
 import asyncio
-from crawl4ai.async_webcrawler import AsyncWebCrawler   # import the function directly from the file, not from pipy packages.
+from crawl4ai.async_webcrawler import AsyncWebCrawler   # import the function directly from the file, not from pypi packages.
 
 ## Steps requires to test it.
 ### NOTE: ALL THIS IS RAN ON THE ROOT DIRECTORY OF CRAWL4AI

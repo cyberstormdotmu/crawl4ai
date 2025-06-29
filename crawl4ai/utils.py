@@ -2825,6 +2825,9 @@ class BotAuth:
         - get_local_keys() -> -> list[dict[str, str]]
         - get_remote_keys() -> list[dict[str, str]]
         - get_header()-> dict[str, str]
+        
+    @info:
+        © 2025 Atish Joottun
     '''
     def __init__(self, url):
         self.url = url
